@@ -94,6 +94,13 @@ jobs:
           path: target/*.jar
           retention-days: 7
 
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: target/surefire-reports
+
       # - name: Run OWASP Dependency Check
       #   run: ./mvnw org.owasp:dependency-check-maven:check -B
       #   continue-on-error: true
@@ -154,6 +161,13 @@ jobs:
           ignore-unfixed: true
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
+          output: 'trivy-report.txt'
+
+      - name: Upload Trivy Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.txt
 
       - name: Push Docker image
         run: |
