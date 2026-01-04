@@ -20,6 +20,7 @@
 		<jjwt.version>0.12.3</jjwt.version>
 		<testcontainers.version>1.19.3</testcontainers.version>
 		<gatling.version>3.10.3</gatling.version>
+		<gatling-plugin.version>4.9.0</gatling-plugin.version>
 	</properties>
 
 	<dependencies>
@@ -223,14 +224,14 @@
 			<!-- SonarQube for Advanced Static Analysis -->
 			<plugin>
 				<groupId>org.sonarsource.scanner.maven</groupId>
-				<artifactId>sonarqube-maven-plugin</artifactId>
+				<artifactId>sonar-maven-plugin</artifactId>
 				<version>3.10.0.2594</version>
 			</plugin>
 			<!-- Gatling for Performance Testing -->
 			<plugin>
 				<groupId>io.gatling</groupId>
 				<artifactId>gatling-maven-plugin</artifactId>
-				<version>${gatling.version}</version>
+				<version>${gatling-plugin.version}</version>
 				<configuration>
 					<simulationClass>com.abdullah.todo.performance.BasicSimulation</simulationClass>
 				</configuration>
