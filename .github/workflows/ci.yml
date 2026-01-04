@@ -1,0 +1,191 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  gitleaks-scan:
+    name: Gitleaks Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+      - name: Gitleaks Action
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-test-scan:
+    name: Build, Test, and Scan (Java ${{ matrix.java-version }})
+    runs-on: ubuntu-latest
+    needs: [gitleaks-scan]
+    strategy:
+      matrix:
+        java-version: [ '17', '21' ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build, test, and generate coverage report
+        run: ./mvnw clean verify jacoco:report -B
+
+      - name: Run Checkstyle
+        run: ./mvnw checkstyle:check -B
+
+      - name: Generate test report
+        uses: dorny/test-reporter@v2
+        if: success() || failure()
+        with:
+          name: Test Results
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: target/site/jacoco/jacoco.xml
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/site/jacoco/
+
+      - name: Upload application jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: target/*.jar
+
+
+      - name: Run OWASP Dependency Check (Push Event)
+        if: github.event_name == 'push'
+        run: ./mvnw org.owasp:dependency-check-maven:check -B
+        continue-on-error: true
+
+      - name: Run OWASP Dependency Check (Pull Request)
+        if: github.event_name == 'pull_request'
+        run: ./mvnw org.owasp:dependency-check-maven:check -B
+
+
+  docker:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [build-test-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Push Docker image
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          
+  performance-test:
+    name: Performance Test
+    runs-on: ubuntu-latest
+    needs: [build-test-scan]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Download application jar
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar
+          path: target
+
+      - name: Run application
+        run: |
+          java -jar target/*.jar &
+          
+      - name: Wait for application to be healthy
+        run: |
+          timeout 30s bash -c 'until curl -s http://localhost:8080/actuator/health | grep UP; do sleep 1; done'
+
+      - name: Run Gatling tests
+        run: ./mvnw gatling:test -B
+
+      - name: Upload Gatling report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gatling-report
+          path: target/gatling
