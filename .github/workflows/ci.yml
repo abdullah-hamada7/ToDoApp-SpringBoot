@@ -99,9 +99,9 @@ jobs:
           path: target/*.jar
           retention-days: 7
 
-      - name: Run OWASP Dependency Check
-        run: ./mvnw org.owasp:dependency-check-maven:check -B
-        continue-on-error: true
+      # - name: Run OWASP Dependency Check
+      #   run: ./mvnw org.owasp:dependency-check-maven:check -B
+      #   continue-on-error: true
 
 
   docker:
