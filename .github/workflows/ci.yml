@@ -2,9 +2,11 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+  workflow_dispatch:
 
 # Cancel outdated runs on the same branch
 concurrency:
@@ -24,7 +26,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
       - name: Gitleaks Action
         uses: gitleaks/gitleaks-action@v2
         env:
@@ -37,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java-version: [ '17', '21' ]
+        java-version: ["17", "21"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,7 +48,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           java-version: ${{ matrix.java-version }}
-          distribution: 'temurin'
+          distribution: "temurin"
           cache: maven
 
       - name: Make Maven wrapper executable
@@ -104,11 +106,11 @@ jobs:
     timeout-minutes: 20
     needs: [gitleaks-scan, build-test-scan]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
+
     permissions:
       contents: read
       packages: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -148,18 +150,18 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
-          format: 'table'
-          exit-code: '1'
+          format: "table"
+          exit-code: "1"
           ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
 
       - name: Push Docker image
         run: |
           echo "${{ steps.meta.outputs.tags }}" | while read -r tag; do
             docker push "$tag"
           done
-          
+
   performance-test:
     name: Performance Test
     runs-on: ubuntu-latest
@@ -178,8 +180,8 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          java-version: "17"
+          distribution: "temurin"
           cache: maven
 
       - name: Download application jar
@@ -191,7 +193,7 @@ jobs:
       - name: Run application
         run: |
           java -jar target/*.jar &
-          
+
       - name: Wait for application to be healthy
         run: |
           timeout 30s bash -c 'until curl -s http://localhost:8080/actuator/health | grep UP; do sleep 1; done'
