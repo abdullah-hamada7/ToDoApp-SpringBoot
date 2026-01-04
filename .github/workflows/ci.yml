@@ -50,9 +50,9 @@ jobs:
 
       - name: Generate test report
         uses: dorny/test-reporter@v2
-        if: success() || failure()
+        if: (success() || failure()) && hashFiles('target/surefire-reports/*.xml') != ''
         with:
-          name: Test Results
+          name: Test Results (Java ${{ matrix.java-version }})
           path: target/surefire-reports/*.xml
           reporter: java-junit
 
@@ -66,13 +66,13 @@ jobs:
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
+          name: coverage-report-java-${{ matrix.java-version }}
           path: target/site/jacoco/
 
       - name: Upload application jar
         uses: actions/upload-artifact@v4
         with:
-          name: app-jar
+          name: app-jar-java-${{ matrix.java-version }}
           path: target/*.jar
 
 
@@ -170,7 +170,7 @@ jobs:
       - name: Download application jar
         uses: actions/download-artifact@v4
         with:
-          name: app-jar
+          name: app-jar-java-17
           path: target
 
       - name: Run application
