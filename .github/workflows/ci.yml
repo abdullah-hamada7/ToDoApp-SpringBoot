@@ -56,12 +56,13 @@ jobs:
       - name: Make Maven wrapper executable
         run: chmod +x ./mvnw
 
-      - name: Cache OWASP NVD Database
+      - name: Cache OWASP Dependency-Check data
         uses: actions/cache@v4
         with:
-          path: ~/.m2/repository/org/owasp
-          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
-          restore-keys: owasp-nvd-${{ runner.os }}-
+          path: ~/.dependency-check
+          key: dependency-check-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            dependency-check-${{ runner.os }}-
 
       - name: Build, test, and generate coverage report
         run: ./mvnw clean verify jacoco:report -B
